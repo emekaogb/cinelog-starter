@@ -12,6 +12,10 @@ class AlreadyInWatchlistError(Exception):
     """Raised when a film is already in the user's watchlist."""
     pass
 
+class NotInWatchlistError(Exception):
+    """Raised when a film is already in the user's watchlist."""
+    pass
+
 def add_to_watchlist(user_id, film_id):
     """
     Save a film to a user's watchlist.
