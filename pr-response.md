@@ -46,8 +46,13 @@ I understand that alphabetical sorting aids discoverability and lookup — but a
 
 ## Comment 6 — Rebase
 **What conflicted:**
+The local feature/watchlist branch and origin/feature/watchlist had diverged: both branches independently applied the commit "fix: update film retrieval method to use db.session.get in collection and watchlist services," creating duplicate work. The local branch had 9 new commits not on origin/feature/watchlist (the rename refactor, deduplication logic, test suite, and documentation), while origin/feature/watchlist had 2 commits not on our local branch.
+
 **How I resolved it:**
+Ran `git rebase origin/feature/watchlist`. Git detected that commits 5c4f1ff and 9ba44a7 (the film retrieval method updates) had already been applied to the base, so it skipped them and replayed only the new commits (rename, deduplication, tests, pr-response) on top of origin/feature/watchlist. The rebase completed without manual conflict resolution needed.
+
 **How I verified no conflict remains:**
+Checked `git log --oneline` after rebase — the branch history now shows all commits in order (ec90edb → 7c37bcd → our new work) with no duplicate commits. The worktree is clean with no merge markers or conflicted files. The branch is now synchronized with origin/feature/watchlist plus our additional enhancements.
 
 ## PR Description
 <!-- Written at the end — feature overview, design decisions, manual testing steps -->
