@@ -5,25 +5,44 @@
 
 ## Comment 1 — Rename
 **What I did:**
+Renamed `save_to_watchlist` to `add_to_watchlist`. Used `grep -r "save_to_watchlist"` across the codebase to locate all call sites. Found three locations: the function definition in `services/watchlist_service.py` (line 12), the import in `routes/watchlist/watchlist.py` (line 8), and the function call in the same file (line 32). Updated all three locations to use the new name.
+
 **How I verified:**
+Ran `grep -r "save_to_watchlist"` after the edits — returned zero results, confirming no references to the old name remain.
 
 ## Comment 2 — Deduplication
 **What I did:**
+Verified the deduplication logic in `add_to_watchlist()` (lines 30-36 in `watchlist_service.py`). The function checks for an existing `WatchlistEntry` with the same `user_id` and `film_id` using `.filter_by()`, and raises `AlreadyInWatchlistError` if one is found. This prevents duplicate entries from being inserted.
+
 **How I verified:**
+Read the implementation directly. The check occurs before creating the new entry object, so it short-circuits before any database mutation. The error message is specific: `"Film '{film_id}' is already in this user's collection"`, making the intent clear to the API caller.
 
 ## Comment 3 — Missing test
 **What I did:**
+Used `test_add_to_collection_duplicate_raises` in `tests/test_collection.py` (lines 78–93) as the model. This test: (1) adds a film to a user's collection, (2) attempts to add the same film again, (3) asserts that `AlreadyInCollectionError` is raised, and (4) verifies only one entry exists in the database. I will create an analogous test for watchlist deduplication in `test_watchlist.py` that follows the same structure but uses `add_to_watchlist()`, `WatchlistEntry`, and `AlreadyInWatchlistError`.
+
 **How I verified:**
+The existing test pattern in `test_collection.py` covers the same scenario for the collection feature. The fixtures (`app`, `sample_user`, `sample_film`) are already shared in `test_watchlist.py`, so the new test will be written in that file and follow the established pattern exactly.
 
 ## Comment 4 — Default visibility
 **My position:**
+Keep `public=True` as the default for watchlist entries.
+
 **Reasoning:**
+A watchlist is deliberate curation, not passively accumulated data. In a social platform like CineLog, discovery value increases when users can see what others want to watch. Users making an active choice to add films to their watchlist implicitly consent to sharing. Users who want privacy can explicitly set `public=False` — an explicit action reinforces intent better than relying on an invisible default.
+
 **Tradeoff acknowledged:**
+The tradeoff is that this assumes users are comfortable with their watching preferences being visible by default, which may not align with all users' privacy expectations. Some users may feel their watchlist is aspirational or personal in a way they don't want exposed. A `public=False` default would be safer and more conservative, requiring users to opt-in to sharing — but it would significantly reduce discoverability and the social value of the platform.
 
 ## Comment 5 — Sort order
 **My position:**
+Switch watchlist sort order from alphabetical (by title) to date_added descending (most recent first), matching the collection service pattern.
+
 **Reasoning:**
+There's already an established clear pattern in `get_collection()` — it sorts by `date_added descending` with a test (`test_get_collection_returns_newest_first`) that validates this behavior intentionally. For a watchlist, recency is semantically meaningful: the films you just thought of are often your most pressing priorities to watch. Alphabetical sorting is convenient for browsing but doesn't reflect user intent. Consistency across both features also reduces cognitive load — users expect the same sort behavior in similar list endpoints.
+
 **Engagement with reviewer's point:**
+I understand that alphabetical sorting aids discoverability and lookup — but a watchlist is curated, not a catalog to browse. If you or reviewers felt that alphabetical was necessary, I'd suggest adding an optional `sort` query parameter so clients can request alphabetical as an alternative. However, the default should follow your established collection precedent.
 
 ## Comment 6 — Rebase
 **What conflicted:**
