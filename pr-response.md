@@ -55,4 +55,76 @@ Ran `git rebase origin/feature/watchlist`. Git detected that commits 5c4f1ff and
 Checked `git log --oneline` after rebase — the branch history now shows all commits in order (ec90edb → 7c37bcd → our new work) with no duplicate commits. The worktree is clean with no merge markers or conflicted files. The branch is now synchronized with origin/feature/watchlist plus our additional enhancements.
 
 ## PR Description
-<!-- Written at the end — feature overview, design decisions, manual testing steps -->
+
+### Overview
+This PR adds a **watchlist feature** to CineLog, allowing users to maintain a curated list of films they want to watch later. Users can add films to their watchlist and retrieve their full watchlist, sorted by most recently added. The feature mirrors the existing collection service and follows the same patterns for data integrity and error handling.
+
+### What the Watchlist Feature Does
+- **Add to Watchlist**: POST `/watchlist/<user_id>/add` accepts a film ID and saves it to the user's watchlist with deduplication — attempting to add the same film twice raises an error rather than creating a duplicate entry.
+- **View Watchlist**: GET `/watchlist/<user_id>` returns all films in a user's watchlist with metadata (date added, visibility status).
+- **Deduplication**: Prevents duplicate entries by checking if a film already exists in the user's watchlist before insertion. Raises `AlreadyInWatchlistError` on duplicate attempts.
+
+### Design Decisions
+
+#### 1. Visibility Default: `public=True`
+Watchlist entries default to public visibility. **Reasoning**: A watchlist is a deliberate curation artifact — users actively choose which films to add. In a social platform like CineLog, public watchlists drive discovery and discussion. Users who want privacy can explicitly set `public=False`. This optimizes for social engagement and discoverability as the platform's core value, with privacy-conscious users able to opt out.
+
+#### 2. Sort Order: `date_added DESC` (Most Recent First)
+Watchlist results are sorted by date added in descending order, matching the collection service pattern. **Reasoning**: Recency is semantically meaningful for a watchlist — the films users just thought of are typically their most pressing priorities to watch. This consistent sort behavior across collection and watchlist endpoints reduces cognitive load for API clients.
+
+### Manual Testing Steps
+
+1. **Setup**: Ensure the Flask app is running (`python app.py` or equivalent).
+
+2. **Create a test user and films** (via the API or database):
+   - Create a user with a known UUID (e.g., `00000001-0000-0000-0000-000000000001`).
+   - Create at least 3 films in the database with IDs (e.g., films with IDs 1, 2, 3).
+
+3. **Test adding a film to the watchlist**:
+   ```bash
+   curl -X POST http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id": 1}'
+   ```
+   - Should return `201` with the created watchlist entry (includes `id`, `user_id`, `film_id`, `date_added`, `public`).
+   - Verify `public` is `true` by default.
+
+4. **Test deduplication**:
+   ```bash
+   curl -X POST http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id": 1}'
+   ```
+   - Should return `400` with error `"Film '1' is already in this user's collection"`.
+
+5. **Add more films and test sort order**:
+   ```bash
+   curl -X POST http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id": 2}'
+   
+   curl -X POST http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id": 3}'
+   ```
+
+6. **Retrieve the watchlist**:
+   ```bash
+   curl http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001
+   ```
+   - Should return a JSON array with films sorted by `date_added` descending (most recently added first).
+   - Verify the order: film 3, then film 2, then film 1.
+
+7. **Test nonexistent film**:
+   ```bash
+   curl -X POST http://localhost:5000/watchlist/00000001-0000-0000-0000-000000000001/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id": 9999}'
+   ```
+   - Should return `400` with error `"No film found with id '9999'"`.
+
+8. **Run the test suite**:
+   ```bash
+   pytest tests/test_watchlist.py -v
+   ```
+   - All tests should pass, including the new deduplication test.
